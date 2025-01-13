@@ -3,6 +3,33 @@ requires = [
     "setuptools>=40.1.0",
 ]
 
+[project]
+name = "surfwetter-ml"
+version = "0.1.0"
+description = "ML wind forecast library to find the best lake for surfing in Switzerland and abroad"
+readme = "README.rst"
+authors = [
+  {name = "Roman", email = "roman@techguides.yt"}
+]
+maintainers = [
+  {name = "Roman", email = "roman@techguides.yt"}
+]
+classifiers = [
+
+]
+license = {text = "MIT license"}
+dependencies = [
+  "typer"
+]
+
+[project.optional-dependencies]
+dev = [
+    "coverage",  # testing
+    "mypy",  # linting
+    "pytest",  # testing
+    "ruff"  # linting
+]
+
 [tool.ruff]
 extend-exclude = ["static", "ci/templates"]
 line-length = 140
