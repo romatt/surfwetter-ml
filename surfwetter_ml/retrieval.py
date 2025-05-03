@@ -155,6 +155,7 @@ def regrid_forecast(data: xr.DataArray, model: Literal["ICON1", "ICON2"]) -> xr.
     # Remap ICON native grid data to the regular grid
     return regrid.iconremap(data, destination)
 
+
 def get_latest_init(model: Literal["ICON1", "ICON2"]) -> dt.datetime:
     """Function to get the latest available model initialization by attempting to download a CTRL run
 
@@ -185,15 +186,13 @@ def get_latest_init(model: Literal["ICON1", "ICON2"]) -> dt.datetime:
     except ValueError:
         # When forecast is not available, return an init "freq" hours earlier
         logger.info("Forecast at %s not available yet!", test_init.strftime("%Y%m%d%H"))
-        return test_init - dt.timedelta(hours=MODELS_ML[model]['freq'])
+        return test_init - dt.timedelta(hours=MODELS_ML[model]["freq"])
 
 
 @click.command()
 @click.option("--model", "-m", default="ICON1")
 @click.option("--init", "-i", default=dt.datetime.now(tz=dt.UTC).replace(hour=0, minute=0, second=0, microsecond=0).strftime("%Y%m%d%H"))
 def process_forecast(model: Literal["ICON1", "ICON2"], init: str):
-
-
     if init == "latest":
         init_time = get_latest_init(model)
     else:
@@ -213,149 +212,3 @@ def process_forecast(model: Literal["ICON1", "ICON2"], init: str):
 
 if __name__ == "__main__":
     process_forecast()
-
-#####################################
-# UNUSED
-#####################################
-
-
-def get_forecast_url(
-    model: Literal["ICON1", "ICON2"], init_time: dt.datetime, parameter: str, perturbed: bool, lead_time: int
-) -> tuple[str, str]:
-    """Get URL for NWP data
-
-    Parameters
-    ----------
-    model : str
-        Model type, either 'ICON1' or 'ICON2'
-    init_time : dt.datetime
-        Model initialization time
-    parameter : str
-        Model parameter
-    perturbed : bool
-        Whether to get the perturbed (ensemble) forecast or not
-    lead_time : int
-        Lead-time to retrieve
-
-    Returns
-    -------
-    tuple[str, str]
-        Download URL & file name
-    """
-
-    # Convert arguments to expected type for API
-    get_ref_time = init_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-    get_lead_time = isodate.duration_isoformat(dt.timedelta(hours=lead_time))
-
-    payload = {
-        "collections": [MODELS_API[model]],
-        "forecast:reference_datetime": get_ref_time,
-        "forecast:variable": parameter,
-        "forecast:perturbed": perturbed,
-        "forecast:horizon": get_lead_time,
-    }
-    response = requests.post(os.path.join(REST_API, "search"), json=payload, timeout=5, headers={"ETag": "If-None-Match"})
-    json_response = json.loads(response.text)
-    fc_key = list(json_response["features"][0]["assets"].keys())
-    return json_response["features"][0]["assets"][fc_key[0]]["href"], fc_key[0]
-
-
-def get_static_url(model: Literal["ICON1", "ICON2"]) -> tuple[str, str, str, str]:
-    """Get URL to retrieve static parameters
-
-    Parameters
-    ----------
-    model : str
-        Model type, either 'ICON1' or 'ICON2'
-
-    Returns
-    -------
-    tuple[str, str, str, str]
-        Download URL & file name for horizontal and vertical constants
-    """
-
-    query = f"collections/{MODELS_API[model]}/assets"
-    response = requests.get(os.path.join(REST_API, query), timeout=5, headers={"ETag": "If-None-Match"})
-    json_response = json.loads(response.text)
-    return (
-        json_response["assets"][0]["href"],
-        json_response["assets"][0]["id"],
-        json_response["assets"][1]["href"],
-        json_response["assets"][1]["id"],
-    )
-
-
-def download_file(url: str, file_name: str, init_time: dt.datetime | None = None) -> None:
-    """Download individual file
-
-    Parameters
-    ----------
-    url : str
-        URL for file
-    file_name : str
-        File name
-    init_time : dt.datetime or None
-        Model initialization time (optional)
-    """
-
-    # Generate folder for forecast
-    if init_time:
-        store_dir = Path(NWP_DIR, init_time.strftime("%Y%m%d_%H"))
-    else:
-        store_dir = NWP_DIR
-    Path(store_dir).mkdir(parents=True, exist_ok=True)
-
-    full_path = Path(store_dir, file_name)
-
-    # Skip if file already exists
-    if Path.is_file(full_path):
-        logger.warning("File %s already dowloaded, skipping!", file_name)
-        return None
-
-    # Download forecast after validating URL
-    if url.lower().startswith("http"):
-        logger.info("Downloading %s", file_name)
-        urllib.request.urlretrieve(url, full_path)
-    else:
-        raise ValueError("URL must start with 'http:' or 'https:'")
-
-
-def download_forecast(model: Literal["ICON1", "ICON2"], init_time: dt.datetime) -> None:
-    """Download entire forecast run
-
-    Parameters
-    ----------
-    model : str
-        Model type, either 'ICON1' or 'ICON2'
-    init_time : dt.datetime
-        Model initialization time
-    """
-
-    for param in PARAMETERS:
-        for lead_time in range(34):
-            url, file_name = get_forecast_url(model, init_time, param, True, lead_time)
-            download_file(url, file_name, init_time)
-
-
-# def process_forecast(init_time: dt.datetime):
-#     # Scan files
-#     directory = Path(NWP_DIR, init_time.strftime("%Y%m%d_%H"))
-#     files = os.listdir(directory)
-#     files = [file for file in files if file.endswith("grib2")]  # only keep grib2 files
-
-#     # Iterate over all parameters
-#     for param in PARAMETERS:
-#         # Match files with this parameter
-#         matched_files = [file for file in files if param.lower() in file.lower()]
-
-#         # Append path
-#         load_files = [Path(directory, match) for match in matched_files]
-#         load_files.sort()
-
-#         # Load all forecasts
-#         param_combined = xr.open_mfdataset(load_files, combine="nested", concat_dim="step")
-
-#         # Regrid forecast
-#         param_regridded = regrid_forecast(param_combined)
-
-#         # Store file on disk
