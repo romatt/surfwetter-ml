@@ -18,9 +18,23 @@ classifiers = [
 
 ]
 license = {text = "MIT license"}
+requires-python = ">=3.12"
 dependencies = [
-  "typer"
+  "typer",
+  "ipykernel (>=6.29.5,<7.0.0)",
+  "requests (>=2.32.3,<3.0.0)",
+  "isodate (>=0.7.2,<0.8.0)",
+  "pydantic (>=2.11.4,<3.0.0)",
+  "xarray (>=2025.4.0,<2026.0.0)",
+  "cfgrib (>=0.9.15.0,<0.10.0.0)",
+  "meteodata-lab[regrid] (>=0.3.0,<0.4.0)",
+  "h5netcdf (>=1.6.1,<2.0.0)",
+  "zarr (>=3.0.7,<4.0.0)",
+  "matplotlib (>=3.10.1,<4.0.0)",
 ]
+
+[tool.poetry.dependencies]
+python = "~3.12"
 
 [project.optional-dependencies]
 dev = [
@@ -34,7 +48,7 @@ dev = [
 extend-exclude = ["static", "ci/templates"]
 line-length = 140
 src = ["src", "tests"]
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.lint.per-file-ignores]
 "ci/*" = ["S"]
