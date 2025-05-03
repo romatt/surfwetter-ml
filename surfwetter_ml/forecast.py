@@ -56,7 +56,7 @@ def get_api_request(model: Literal["ICON1", "ICON2"], init_time: dt.datetime, pa
 def load_forecast(model: Literal["ICON1", "ICON2"], param: str, init_time: dt.datetime) -> xr.DataArray:
     da_list = []
     for lead_time in range(MODELS_ML[model]["start"], MODELS_ML[model]["stop"]):
-        logger.info("Loading forecast %s param %s for lead-time %s", model, param, lead_time)
+        logger.info("Loading %s init %s param %s for lead-time %s", model, init_time.strftime("%Y%m%d%H"), param, lead_time)
         api_request = get_api_request(model, init_time, param, lead_time)
         combined_da = build_forecast_step(api_request)  # Download data and combine ctrl with ensemble
         da_list.append(regrid_forecast(combined_da, model))  # Re-project and reduce size
@@ -155,15 +155,37 @@ def regrid_forecast(data: xr.DataArray, model: Literal["ICON1", "ICON2"]) -> xr.
     # Remap ICON native grid data to the regular grid
     return regrid.iconremap(data, destination)
 
-def get_latest_init(model: Literal["ICON1", "ICON2"]):
-    # For now, always try to get the last FC...
-    # init_time = init_time - dt.timedelta(hours=MODELS_ML[model]["freq"])
+def get_latest_init(model: Literal["ICON1", "ICON2"]) -> dt.datetime:
+    """Function to get the latest available model initialization by attempting to download a CTRL run
 
-    # # Check if forecast exists
-    # test_request = get_api_request(model, init_time, PARAMETERS[0], MODELS_ML[model]["stop"])
-    # try:
-    #     _ = ogd_api.get_from_ogd(test_request[0])
-    # except ValueError:
+    Parameters
+    ----------
+    model : Literal['ICON1', 'ICON2']
+        Model type, either 'ICON1' or 'ICON2'
+
+    Returns
+    -------
+    dt.datetime
+        Initialization time
+    """
+
+    # Derive the latest possible forecast based on the model initialization frequency
+    utc_now = dt.datetime.now(dt.UTC).replace(minute=0, second=0, microsecond=0)
+    hour_remainder = utc_now.hour % MODELS_ML[model]["freq"]
+    if hour_remainder == 0:
+        test_init = utc_now
+    else:
+        test_init = utc_now - dt.timedelta(hours=hour_remainder)
+
+    # Build API request for the last timestep of the model init to test
+    test_request = get_api_request(model, test_init, PARAMETERS[0], MODELS_ML[model]["stop"] - 1)
+    try:
+        _ = ogd_api.get_from_ogd(test_request[0])
+        return test_init
+    except ValueError:
+        # When forecast is not available, return an init "freq" hours earlier
+        logger.info("Forecast at %s not available yet!", test_init.strftime("%Y%m%d%H"))
+        return test_init - dt.timedelta(hours=MODELS_ML[model]['freq'])
 
 
 @click.command()
