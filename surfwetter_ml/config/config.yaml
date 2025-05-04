@@ -1,5 +1,25 @@
-NWP:
+
+api: "https://data.geo.admin.ch/api/stac/v1/"
+data: "mnt/nwp2"
+nwp:
+  parameters:
+    - "VMAX_10M"
+    - "U_10M"
+    - "V_10M"
+    - "T_2M"
+    - "TD_2M"
+    - "HZEROCL"
+    - "DURSUN"
+    - "PMSL"
+    - "TOT_PREC"
   model:
     ICON1:
-      name:
-      horizon:
+      start: 0
+      stop: 34
+      freq: 3
+      distance: 0.01
+    ICON2:
+      start: 34
+      stop: 121
+      freq: 6
+      distance: 0.02
