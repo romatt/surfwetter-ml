@@ -1,15 +1,11 @@
 import datetime as dt
-import json
 import logging
-import os
-import urllib.request
 from pathlib import Path
 from typing import Literal
 
 import click
 import isodate
 import numpy as np
-import requests
 import xarray as xr
 from earthkit.data import config
 from meteodatalab import ogd_api
