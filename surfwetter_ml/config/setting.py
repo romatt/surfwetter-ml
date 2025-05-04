@@ -9,10 +9,12 @@ class SubscriptableBaseModel(BaseModel):
 
 
 class RegridSettings(SubscriptableBaseModel):
-    xmin: float; xmax: float
+    xmin: float
+    xmax: float
     """Longitude bounds for re-gridding"""
 
-    ymin: float; ymax: float
+    ymin: float
+    ymax: float
     """Latitude bounds for re-gridding"""
 
 
@@ -44,12 +46,45 @@ class NWPSettings(SubscriptableBaseModel):
     regrid: RegridSettings
 
 
+class TargetSettings(SubscriptableBaseModel):
+    parameter: str
+    """Parameter to predict"""
+
+    desc: str
+    """Description of parameter to predict"""
+
+    statistics: list[float]
+    """Which statistics should be derived from the model ensemble"""
+
+    accumulated: bool
+    """Whether the NWP data is accumulated"""
+
+
+class SiteSettings(SubscriptableBaseModel):
+    name: str
+    """Name of prediction site"""
+
+    lon: float
+    """Longitude of prediction site"""
+
+    lat: float
+    """Latitude of prediction site"""
+
+
+class ForecastSettings(SubscriptableBaseModel):
+    sites: list[SiteSettings]
+    targets: list[TargetSettings]
+
+
 class LibrarySettings(BaseModel):
     nwp: NWPSettings
-    """Settings for forecasts"""
+    """Settings for NWP data"""
 
     data: str
     """Storage location of NWP data"""
 
     api: str
     """STAC API"""
+
+    forecast: ForecastSettings
+    """Settings for predicitons"""
