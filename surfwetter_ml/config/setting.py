@@ -83,6 +83,9 @@ class LibrarySettings(BaseModel):
     data: str
     """Storage location of NWP data"""
 
+    dtfmt: str
+    """Date format"""
+
     api: str
     """STAC API"""
 

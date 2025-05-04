@@ -46,7 +46,7 @@ def get_api_request(model: Literal["ICON1", "ICON2"], init_time: dt.datetime, pa
 def load_forecast(model: Literal["ICON1", "ICON2"], param: str, init_time: dt.datetime) -> xr.DataArray:
     da_list = []
     for lead_time in range(CONFIG.nwp.models[model].start, CONFIG.nwp.models[model].stop):
-        logger.info("Loading %s init %s param %s for lead-time %s", model, init_time.strftime("%Y%m%d%H"), param, lead_time)
+        logger.info("Loading %s init %s param %s for lead-time %s", model, init_time.strftime(CONFIG.dtfmt), param, lead_time)
         api_request = get_api_request(model, init_time, param, lead_time)
         combined_da = build_forecast_step(api_request)  # Download data and combine ctrl with ensemble
         da_list.append(regrid_forecast(combined_da, model))  # Re-project and reduce size
@@ -61,14 +61,14 @@ def load_forecast(model: Literal["ICON1", "ICON2"], param: str, init_time: dt.da
 
 def write_forecast(data: xr.Dataset, model: Literal["ICON1", "ICON2"], param: str, init_time: dt.datetime) -> None:
     # Store file on disk
-    store_dir = Path(CONFIG.data, init_time.strftime("%Y%m%d_%H"))
+    store_dir = Path(CONFIG.data, init_time.strftime(CONFIG.dtfmt))
     Path(store_dir).mkdir(parents=True, exist_ok=True)
 
     # test writing to zarr
-    # file_name = f"{store_dir}/{model}-{init_time.strftime("%Y%m%d%H")}-{param}.zarr"
+    # file_name = f"{store_dir}/{model}-{init_time.strftime(CONFIG.dtfmt)}-{param}.zarr"
     # ds.to_zarr(file_name)
 
-    file_name = f"{store_dir}/{model}-{init_time.strftime('%Y%m%d%H')}-{param}.nc"
+    file_name = f"{store_dir}/{model}-{init_time.strftime(CONFIG.dtfmt)}-{param}.nc"
     logger.info("Writing %s to disk", file_name)
 
     # Define datatypes
@@ -184,23 +184,23 @@ def get_latest_init(model: Literal["ICON1", "ICON2"]) -> dt.datetime:
         return test_init
     except ValueError:
         # When forecast is not available, return an init "freq" hours earlier
-        logger.info("Forecast at %s not available yet!", test_init.strftime("%Y%m%d%H"))
+        logger.info("Forecast at %s not available yet!", test_init.strftime(CONFIG.dtfmt))
         return test_init - dt.timedelta(hours=CONFIG.nwp.models[model].freq)
 
 
 @click.command()
 @click.option("--model", "-m", default="ICON1")
-@click.option("--init", "-i", default=dt.datetime.now(tz=dt.UTC).replace(hour=0, minute=0, second=0, microsecond=0).strftime("%Y%m%d%H"))
+@click.option("--init", "-i", default=dt.datetime.now(tz=dt.UTC).replace(hour=0, minute=0, second=0, microsecond=0).strftime(CONFIG.dtfmt))
 def process_forecast(model: Literal["ICON1", "ICON2"], init: str):
     if init == "latest":
         init_time = get_latest_init(model)
     else:
-        init_time = dt.datetime.strptime(init, "%Y%m%d%H")
+        init_time = dt.datetime.strptime(init, CONFIG.dtfmt)
 
     for param in CONFIG.nwp.parameters:
         # Skip files which are already available
-        store_dir = Path(CONFIG.data, init_time.strftime("%Y%m%d_%H"))
-        full_path = Path(store_dir, f"{model}-{init_time.strftime('%Y%m%d%H')}-{param}.nc")
+        store_dir = Path(CONFIG.data, init_time.strftime(CONFIG.dtfmt))
+        full_path = Path(store_dir, f"{model}-{init_time.strftime(CONFIG.dtfmt)}-{param}.nc")
         if Path.is_file(full_path):
             logger.warning("File %s already dowloaded, skipping!", full_path)
             continue
