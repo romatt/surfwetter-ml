@@ -869,6 +869,21 @@ files = [
 packaging = "*"
 
 [[package]]
+name = "dict2xml"
+version = "1.7.6"
+description = "Small utility to convert a python dictionary into an XML string"
+optional = false
+python-versions = ">=3.5"
+groups = ["main"]
+files = [
+    {file = "dict2xml-1.7.6-py3-none-any.whl", hash = "sha256:841a0c1720e4bfa121e958b805f1062fccf5af2970e7a1f81d7fa056f49e5065"},
+    {file = "dict2xml-1.7.6.tar.gz", hash = "sha256:3e4811f4ef7fca86dede6acf382268ff9bc5735a4aa0e21b465f6eb0c4e81732"},
+]
+
+[package.extras]
+tests = ["noseofyeti[black] (==2.4.9)", "pytest (==8.3.2)"]
+
+[[package]]
 name = "donfig"
 version = "0.8.1.post1"
 description = "Python package for configuring a python package"
@@ -3688,4 +3703,4 @@ dev = ["coverage", "mypy", "pytest", "ruff"]
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.12"
-content-hash = "78510f6f5b6c0d76c6e469bd85a70ad725b779dd9f2fdce99184b60cba565de7"
+content-hash = "2ad1c8cc15e1036f776c8015f4e36ee17136643f4639670da5f87b81cafd6856"

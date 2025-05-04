@@ -31,6 +31,7 @@ dependencies = [
   "zarr (>=3.0.7,<4.0.0)",
   "matplotlib (>=3.10.1,<4.0.0)",
   "pydantic-yaml (>=1.4.0,<2.0.0)",
+  "dict2xml (>=1.7.6,<2.0.0)",
 ]
 
 [tool.poetry.dependencies]
