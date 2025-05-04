@@ -53,7 +53,7 @@ class TargetSettings(SubscriptableBaseModel):
     desc: str
     """Description of parameter to predict"""
 
-    statistics: list[float]
+    quantiles: list[float]
     """Which statistics should be derived from the model ensemble"""
 
     accumulated: bool
