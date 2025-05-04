@@ -8,6 +8,14 @@ class SubscriptableBaseModel(BaseModel):
         return getattr(self, item)
 
 
+class RegridSettings(SubscriptableBaseModel):
+    xmin: float; xmax: float
+    """Longitude bounds for re-gridding"""
+
+    ymin: float; ymax: float
+    """Latitude bounds for re-gridding"""
+
+
 class ModelSettings(SubscriptableBaseModel):
     name: str
     """The model name as expected by the STAC API"""
@@ -33,6 +41,7 @@ class ModelList(SubscriptableBaseModel):
 class NWPSettings(SubscriptableBaseModel):
     parameters: list[str]
     models: ModelList
+    regrid: RegridSettings
 
 
 class LibrarySettings(BaseModel):

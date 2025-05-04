@@ -25,3 +25,8 @@ nwp:
       stop: 121
       freq: 6
       distance: 0.02
+  regrid:
+    xmin: 5.303
+    xmax: 11.003
+    ymin: 45.303
+    ymax: 48.003
