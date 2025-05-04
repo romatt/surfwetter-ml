@@ -76,6 +76,17 @@ class ForecastSettings(SubscriptableBaseModel):
     targets: list[TargetSettings]
 
 
+class FTPSettings(SubscriptableBaseModel):
+    host: str
+    """FTP host"""
+
+    user: str
+    """FTP username"""
+
+    password: str
+    """FTP password"""
+
+
 class LibrarySettings(BaseModel):
     nwp: NWPSettings
     """Settings for NWP data"""
@@ -91,3 +102,6 @@ class LibrarySettings(BaseModel):
 
     forecast: ForecastSettings
     """Settings for predicitons"""
+
+    ftp: FTPSettings
+    """Setting for connection to FTP server"""
