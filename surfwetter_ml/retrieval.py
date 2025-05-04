@@ -12,18 +12,12 @@ from meteodatalab import ogd_api
 from meteodatalab.operators import regrid
 from rasterio.crs import CRS
 
+from surfwetter_ml import CONFIG
+
 logging.basicConfig(format=" %(name)s :: %(levelname)-8s :: %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-REST_API = "https://data.geo.admin.ch/api/stac/v1/"
-NWP_DIR = "/mnt/nwp2"
-PARAMETERS = ["VMAX_10M", "U_10M", "V_10M", "T_2M", "TD_2M", "HZEROCL", "DURSUN", "PMSL", "TOT_PREC"]
-MODELS_API = {"ICON1": "ch.meteoschweiz.ogd-forecasting-icon-ch1", "ICON2": "ch.meteoschweiz.ogd-forecasting-icon-ch2"}
-MODELS_ML = {
-    "ICON1": {"name": "ogd-forecasting-icon-ch1", "start": 0, "stop": 34, "freq": 3, "distance": 0.01},
-    "ICON2": {"name": "ogd-forecasting-icon-ch2", "start": 34, "stop": 121, "freq": 6, "distance": 0.02},
-}
-
+# Set Cache for downloaded data
 config.set("cache-policy", "temporary")
 
 
@@ -33,14 +27,14 @@ def get_api_request(model: Literal["ICON1", "ICON2"], init_time: dt.datetime, pa
     get_lead_time = isodate.duration_isoformat(dt.timedelta(hours=lead_time))
 
     control = ogd_api.Request(
-        collection=MODELS_ML[model]["name"],
+        collection=CONFIG.nwp.models[model].name,
         variable=parameter,
         reference_datetime=get_ref_time,
         perturbed=False,
         horizon=get_lead_time,
     )
     ensemble = ogd_api.Request(
-        collection=MODELS_ML[model]["name"],
+        collection=CONFIG.nwp.models[model].name,
         variable=parameter,
         reference_datetime=get_ref_time,
         perturbed=True,
@@ -51,7 +45,7 @@ def get_api_request(model: Literal["ICON1", "ICON2"], init_time: dt.datetime, pa
 
 def load_forecast(model: Literal["ICON1", "ICON2"], param: str, init_time: dt.datetime) -> xr.DataArray:
     da_list = []
-    for lead_time in range(MODELS_ML[model]["start"], MODELS_ML[model]["stop"]):
+    for lead_time in range(CONFIG.nwp.models[model].start, CONFIG.nwp.models[model].stop):
         logger.info("Loading %s init %s param %s for lead-time %s", model, init_time.strftime("%Y%m%d%H"), param, lead_time)
         api_request = get_api_request(model, init_time, param, lead_time)
         combined_da = build_forecast_step(api_request)  # Download data and combine ctrl with ensemble
@@ -67,7 +61,7 @@ def load_forecast(model: Literal["ICON1", "ICON2"], param: str, init_time: dt.da
 
 def write_forecast(data: xr.Dataset, model: Literal["ICON1", "ICON2"], param: str, init_time: dt.datetime) -> None:
     # Store file on disk
-    store_dir = Path(NWP_DIR, init_time.strftime("%Y%m%d_%H"))
+    store_dir = Path(CONFIG.data, init_time.strftime("%Y%m%d_%H"))
     Path(store_dir).mkdir(parents=True, exist_ok=True)
 
     # test writing to zarr
@@ -134,15 +128,24 @@ def build_forecast_step(requests: list) -> xr.DataArray:
 
 
 def regrid_forecast(data: xr.DataArray, model: Literal["ICON1", "ICON2"]) -> xr.DataArray:
+    """Re-grid forecast to WGS84
+
+    Parameters
+    ----------
+    data : xr.DataArray
+        Input data
+    model : Literal['ICON1', 'ICON2']
+        Model type, either 'ICON1' or 'ICON2'
+
+    Returns
+    -------
+    xr.DataArray
+        Re-gridded data
+    """
     # Define the target grid extent and resolution
-    # xmin, xmax = -0.817, 18.183  # Longitude bounds
-    # ymin, ymax = 41.183, 51.183  # Latitude bounds
-    # nx, ny = 950, 500  # Number of grid points in x and y
-
-    xmin, xmax = 5.303, 11.003  # Longitude bounds
-    ymin, ymax = 45.303, 48.003  # Latitude bounds
-
-    distance = MODELS_ML[model]["distance"]
+    xmin, xmax = CONFIG.nwp.regrid.xmin, CONFIG.nwp.regrid.xmax
+    ymin, ymax = CONFIG.nwp.regrid.ymin, CONFIG.nwp.regrid.ymax
+    distance = CONFIG.nwp.models[model].distance
     nx, ny = round((xmax - xmin) / distance), round((ymax - ymin) / distance)  # Number of grid points in x and y
 
     # Create a regular lat/lon grid using EPSG:4326
@@ -168,21 +171,21 @@ def get_latest_init(model: Literal["ICON1", "ICON2"]) -> dt.datetime:
 
     # Derive the latest possible forecast based on the model initialization frequency
     utc_now = dt.datetime.now(dt.UTC).replace(minute=0, second=0, microsecond=0)
-    hour_remainder = utc_now.hour % MODELS_ML[model]["freq"]
+    hour_remainder = utc_now.hour % CONFIG.nwp.models[model].freq
     if hour_remainder == 0:
         test_init = utc_now
     else:
         test_init = utc_now - dt.timedelta(hours=hour_remainder)
 
     # Build API request for the last timestep of the model init to test
-    test_request = get_api_request(model, test_init, PARAMETERS[0], MODELS_ML[model]["stop"] - 1)
+    test_request = get_api_request(model, test_init, CONFIG.nwp.parameters[0], CONFIG.nwp.models[model].stop - 1)
     try:
         _ = ogd_api.get_from_ogd(test_request[0])
         return test_init
     except ValueError:
         # When forecast is not available, return an init "freq" hours earlier
         logger.info("Forecast at %s not available yet!", test_init.strftime("%Y%m%d%H"))
-        return test_init - dt.timedelta(hours=MODELS_ML[model]["freq"])
+        return test_init - dt.timedelta(hours=CONFIG.nwp.models[model].freq)
 
 
 @click.command()
@@ -194,9 +197,9 @@ def process_forecast(model: Literal["ICON1", "ICON2"], init: str):
     else:
         init_time = dt.datetime.strptime(init, "%Y%m%d%H")
 
-    for param in PARAMETERS:
+    for param in CONFIG.nwp.parameters:
         # Skip files which are already available
-        store_dir = Path(NWP_DIR, init_time.strftime("%Y%m%d_%H"))
+        store_dir = Path(CONFIG.data, init_time.strftime("%Y%m%d_%H"))
         full_path = Path(store_dir, f"{model}-{init_time.strftime('%Y%m%d%H')}-{param}.nc")
         if Path.is_file(full_path):
             logger.warning("File %s already dowloaded, skipping!", full_path)
