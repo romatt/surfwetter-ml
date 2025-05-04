@@ -9,10 +9,20 @@ class SubscriptableBaseModel(BaseModel):
 
 
 class ModelSettings(SubscriptableBaseModel):
+    name: str
+    """The model name as expected by the STAC API"""
+
     start: int
+    """First hour of extract"""
+
     stop: int
+    """Last hour of extraction"""
+
     freq: int
+    """Model update frequency"""
+
     distance: float
+    """Model resolution after re-gridding in WGS84"""
 
 
 class ModelList(SubscriptableBaseModel):
@@ -22,10 +32,15 @@ class ModelList(SubscriptableBaseModel):
 
 class NWPSettings(SubscriptableBaseModel):
     parameters: list[str]
-    model: ModelList
+    models: ModelList
 
 
 class LibrarySettings(BaseModel):
     nwp: NWPSettings
+    """Settings for forecasts"""
+
     data: str
+    """Storage location of NWP data"""
+
     api: str
+    """STAC API"""

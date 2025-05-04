@@ -12,13 +12,15 @@ nwp:
     - "DURSUN"
     - "PMSL"
     - "TOT_PREC"
-  model:
+  models:
     ICON1:
+      name: "ogd-forecasting-icon-ch1"
       start: 0
       stop: 34
       freq: 3
       distance: 0.01
     ICON2:
+      name: "ogd-forecasting-icon-ch2"
       start: 34
       stop: 121
       freq: 6
