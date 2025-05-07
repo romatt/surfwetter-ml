@@ -55,7 +55,7 @@ def predict():
             forecast = add_metadata(forecast, target)
 
             # Upload forecast to FTP server
-            upload_forecast(forecast, site, target)
+            upload_forecast(forecast, file_name)
 
 
 def pre_process_forecast(init_icon1: str, init_icon2: str) -> None:
@@ -135,6 +135,15 @@ def add_metadata(forecast: xr.DataArray, target: TargetSettings) -> xr.DataArray
 
 
 def upload_forecast(forecast: xr.DataArray, file_name: str) -> None:
+    """Convert forecast from xarray to XML and upload bytes to FTP server. Additionally, store XML file locally
+
+    Parameters
+    ----------
+    forecast : xr.DataArray
+        Dataarray holding the forecast
+    file_name : str
+        Name of XML file to generate
+    """
 
     logger.info("Uploading %s to FTP server...", file_name)
 
@@ -215,6 +224,22 @@ def match_files(model: str, files: list) -> bool:
 
 
 def compute_quantiles(data: xr.Dataset, site: SiteSettings, target: TargetSettings) -> xr.DataArray:
+    """Extract parameter at required station and compute quantiles from forecast ensemble
+
+    Parameters
+    ----------
+    data : xr.Dataset
+        Model forecast ensemble
+    site : SiteSettings
+        Site settings with `lon` and `lat` attributes
+    target : TargetSettings
+        Target settings with information about quantiles to compute
+
+    Returns
+    -------
+    xr.DataArray
+        Requested quantiles of parameter extracted at required station
+    """
     local_forecast = data[target.parameter].sel(lon=site.lon, lat=site.lat, method="nearest")  # Select location and parameter
     statistics = []
     for quantile in target.quantiles:
