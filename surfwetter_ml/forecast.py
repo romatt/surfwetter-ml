@@ -58,6 +58,12 @@ def pre_process(init_icon1: str, init_icon2: str) -> None:
 
 
 def pre_process_wind(model: str, init: str) -> None:
+    if Path.is_file(Path(CONFIG.data, init, f"{model}-{init}-WIND_DIR.nc")) and Path.is_file(
+        Path(CONFIG.data, init, f"{model}-{init}-WIND_SPEED.nc")
+    ):
+        logging.info("Wind for %s init %s already processed", model, init)
+        return
+
     logging.info("Pre-processing wind for %s init %s", model, init)
     u = xr.open_dataset(Path(CONFIG.data, init, f"{model}-{init}-U_10M.nc"))
     v = xr.open_dataset(Path(CONFIG.data, init, f"{model}-{init}-V_10M.nc"))
@@ -123,12 +129,14 @@ def upload_forecast(forecast: xr.DataArray, site: SiteSettings, target: TargetSe
     forecast_bytes.write(forecast_xml.encode())
     forecast_bytes.seek(0)
 
+    init_time = pd.to_datetime(forecast.valid_time[0].data).strftime(CONFIG.dtfmt)
+
     # Define file name
-    filename = f"{site.name}-{pd.to_datetime(forecast.valid_time[0].data).strftime(CONFIG.dtfmt)}-{target.parameter}.xml"
+    filename = f"{site.name}-{init_time}-{target.parameter}.xml"
     logger.info("Uploading %s to FTP server...", filename)
 
     # Store files also locally
-    with Path.open(Path(CONFIG.data, filename), "w") as f:
+    with Path.open(Path(CONFIG.data, init_time, filename), "w") as f:
         f.write(forecast_xml)
 
     # Connect to server and upload forecast
