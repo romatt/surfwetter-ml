@@ -1,3 +1,13 @@
+"""This module provides simple functionality to extract direct model output parameters at defined sites and
+derive a defined number of forecast targets.
+
+Currently predicting temperature, precipitation, wind speed, wind direction, wind gusts and duration of sunshine.
+
+For each parameter, a defined number of quantiles is extracted from the full model ensemble, e.g. 0.5Q = Median
+
+Wind data is pre-processed and accumulated field de-aggregated.
+"""
+
 import datetime as dt
 import io
 import logging
@@ -28,7 +38,6 @@ def predict():
     # Iterate over forecasting sizes
     for site in CONFIG.forecast.sites:
         for target in CONFIG.forecast.targets:
-
             # Define file name and check if forecast already exists
             file_name = f"{site.name}-{init_icon1}-{target.parameter}.xml"
             if Path.is_file(Path(CONFIG.data, init_icon1, file_name)):
