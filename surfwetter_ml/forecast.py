@@ -7,7 +7,6 @@ from ftplib import FTP
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import xarray as xr
 from dict2xml import dict2xml
 
@@ -24,11 +23,18 @@ def predict():
     init_icon1, init_icon2 = lookup_latest_forecast()
 
     # Perform pre-processing steps
-    pre_process(init_icon1, init_icon2)
+    pre_process_forecast(init_icon1, init_icon2)
 
     # Iterate over forecasting sizes
     for site in CONFIG.forecast.sites:
         for target in CONFIG.forecast.targets:
+
+            # Define file name and check if forecast already exists
+            file_name = f"{site.name}-{init_icon1}-{target.parameter}.xml"
+            if Path.is_file(Path(CONFIG.data, init_icon1, file_name)):
+                logging.warning("Prediction %s for %s already exists", target.parameter, site.name)
+                continue
+
             logging.info("Extracting %s predictions for %s", target.parameter, site.name)
             icon1_fcst = xr.open_dataset(Path(CONFIG.data, init_icon1, f"ICON1-{init_icon1}-{target.parameter}.nc"))
             icon2_fcst = xr.open_dataset(Path(CONFIG.data, init_icon2, f"ICON2-{init_icon2}-{target.parameter}.nc"))
@@ -52,7 +58,16 @@ def predict():
             upload_forecast(forecast, site, target)
 
 
-def pre_process(init_icon1: str, init_icon2: str) -> None:
+def pre_process_forecast(init_icon1: str, init_icon2: str) -> None:
+    """Run pre-processing steps for foreacst, only needed once per forecast
+
+    Parameters
+    ----------
+    init_icon1 : str
+        Latest ICON-CH1-EPS initialization
+    init_icon2 : str
+        Latest ICON-CH2-EPS initialization
+    """
     pre_process_wind("ICON1", init_icon1)
     pre_process_wind("ICON2", init_icon2)
 
@@ -61,7 +76,7 @@ def pre_process_wind(model: str, init: str) -> None:
     if Path.is_file(Path(CONFIG.data, init, f"{model}-{init}-WIND_DIR.nc")) and Path.is_file(
         Path(CONFIG.data, init, f"{model}-{init}-WIND_SPEED.nc")
     ):
-        logging.info("Wind for %s init %s already processed", model, init)
+        logging.warning("Wind for %s init %s is already pre-processed", model, init)
         return
 
     logging.info("Pre-processing wind for %s init %s", model, init)
@@ -119,7 +134,10 @@ def add_metadata(forecast: xr.DataArray, target: TargetSettings) -> xr.DataArray
     return forecast
 
 
-def upload_forecast(forecast: xr.DataArray, site: SiteSettings, target: TargetSettings) -> None:
+def upload_forecast(forecast: xr.DataArray, file_name: str) -> None:
+
+    logger.info("Uploading %s to FTP server...", file_name)
+
     # Convert forecast to XML
     forecast_dict = forecast.to_dict()
     forecast_xml = dict2xml(forecast_dict)
@@ -129,19 +147,13 @@ def upload_forecast(forecast: xr.DataArray, site: SiteSettings, target: TargetSe
     forecast_bytes.write(forecast_xml.encode())
     forecast_bytes.seek(0)
 
-    init_time = pd.to_datetime(forecast.valid_time[0].data).strftime(CONFIG.dtfmt)
-
-    # Define file name
-    filename = f"{site.name}-{init_time}-{target.parameter}.xml"
-    logger.info("Uploading %s to FTP server...", filename)
-
     # Store files also locally
-    with Path.open(Path(CONFIG.data, init_time, filename), "w") as f:
+    with Path.open(Path(CONFIG.data, init_time, file_name), "w") as f:
         f.write(forecast_xml)
 
     # Connect to server and upload forecast
     ftp_server = FTP(CONFIG.ftp.host, CONFIG.ftp.user, CONFIG.ftp.password)
-    ftp_server.storbinary(f"STOR {filename}", forecast_bytes)
+    ftp_server.storbinary(f"STOR {file_name}", forecast_bytes)
 
     # Close the Connection
     ftp_server.quit()
