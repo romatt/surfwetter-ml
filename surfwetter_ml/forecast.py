@@ -148,7 +148,7 @@ def upload_forecast(forecast: xr.DataArray, file_name: str) -> None:
     forecast_bytes.seek(0)
 
     # Store files also locally
-    with Path.open(Path(CONFIG.data, init_time, file_name), "w") as f:
+    with Path.open(Path(CONFIG.data, file_name.split("-")[1], file_name), "w") as f:
         f.write(forecast_xml)
 
     # Connect to server and upload forecast
