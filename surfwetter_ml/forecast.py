@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def predict():
     # Load the latest fully available ICON1 & ICON2 forecast
-    init_icon1, init_icon2 = get_latest_forecast()
+    init_icon1, init_icon2 = lookup_latest_forecast()
 
     # Perform pre-processing steps
     pre_process(init_icon1, init_icon2)
@@ -147,8 +147,8 @@ def upload_forecast(forecast: xr.DataArray, site: SiteSettings, target: TargetSe
     ftp_server.quit()
 
 
-def get_latest_forecast() -> tuple[str, str]:
-    """Get the latest fully available forecasts for ICON1 & ICON2
+def lookup_latest_forecast() -> tuple[str, str]:
+    """Find the latest fully downloaded forecasts for ICON1 & ICON2
 
     Returns
     -------
