@@ -59,6 +59,9 @@ class TargetSettings(SubscriptableBaseModel):
     accumulated: bool
     """Whether the NWP data is accumulated"""
 
+    units: str
+    """Units of foreacst"""
+
 
 class SiteSettings(SubscriptableBaseModel):
     name: str
