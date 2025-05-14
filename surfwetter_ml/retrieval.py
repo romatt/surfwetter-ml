@@ -12,6 +12,7 @@ from meteodatalab.operators import regrid
 from rasterio.crs import CRS
 
 from surfwetter_ml import CONFIG
+from surfwetter_ml.forecast import predict
 from surfwetter_ml.util import da_to_ds
 from surfwetter_ml.util import write_forecast
 
@@ -151,6 +152,8 @@ def process_forecast(model: Literal["ICON1", "ICON2"], init: str):
         ds = da_to_ds(da, param)
         write_forecast(ds, model, param, init_time)
 
+    # Trigger processing of latest forecast
+    predict()
 
 if __name__ == "__main__":
     process_forecast()
