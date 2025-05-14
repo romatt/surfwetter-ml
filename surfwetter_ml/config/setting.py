@@ -50,7 +50,7 @@ class TargetSettings(SubscriptableBaseModel):
     parameter: str
     """Parameter to predict"""
 
-    desc: str
+    description: str
     """Description of parameter to predict"""
 
     quantiles: list[float]
