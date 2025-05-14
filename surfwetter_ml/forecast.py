@@ -10,15 +10,16 @@ Wind data is pre-processed and accumulated field de-aggregated.
 
 import datetime as dt
 import io
+import json
 import logging
 import os
 import re
 from ftplib import FTP
 from pathlib import Path
 
+import click
 import numpy as np
 import xarray as xr
-from dict2xml import dict2xml
 
 from surfwetter_ml import CONFIG
 from surfwetter_ml.config.setting import SiteSettings
@@ -28,9 +29,14 @@ from surfwetter_ml.util import write_forecast
 logger = logging.getLogger(__name__)
 
 
-def predict():
-    # Load the latest fully available ICON1 & ICON2 forecast
-    init_icon1, init_icon2 = lookup_latest_forecast()
+@click.command()
+@click.option("--icon1", "-i1")
+@click.option("--icon2", "-i2")
+def predict(init_icon1: str | None = None, init_icon2: str | None = None):
+
+    if init_icon1 is None:
+        # Load the latest fully available ICON1 & ICON2 forecast
+        init_icon1, init_icon2 = lookup_latest_forecast()
 
     # Perform pre-processing steps
     pre_process_forecast(init_icon1, init_icon2)
@@ -39,7 +45,7 @@ def predict():
     for site in CONFIG.forecast.sites:
         for target in CONFIG.forecast.targets:
             # Define file name and check if forecast already exists
-            file_name = f"{site.name}-{init_icon1}-{target.parameter}.xml"
+            file_name = f"{site.name}-{init_icon1}-{target.parameter}.json"
             if Path.is_file(Path(CONFIG.data, init_icon1, file_name)):
                 logging.warning("Prediction %s for %s already exists", target.parameter, site.name)
                 continue
@@ -138,36 +144,39 @@ def add_metadata(forecast: xr.DataArray, target: TargetSettings) -> xr.DataArray
     xr.DataArray
         Updated xarray
     """
-    forecast.attrs["units"] = target.units
-    forecast.attrs["desc"] = target.desc
+    forecast.attrs["unit"] = target.unit
+    forecast.attrs["description"] = target.desc
     return forecast
 
 
 def upload_forecast(forecast: xr.DataArray, file_name: str) -> None:
-    """Convert forecast from xarray to XML and upload bytes to FTP server. Additionally, store XML file locally
+    """Convert forecast from xarray to JSON and upload bytes to FTP server. Additionally, store JSON file locally
 
     Parameters
     ----------
     forecast : xr.DataArray
         Dataarray holding the forecast
     file_name : str
-        Name of XML file to generate
+        Name of JSON file to generate
     """
 
     logger.info("Uploading %s to FTP server...", file_name)
 
-    # Convert forecast to XML
+    # Define time format
+    forecast['valid_time'] = forecast.valid_time.dt.strftime("%Y-%m-%dT%H:%M:%S")
+
+    # Convert forecast to JSON
     forecast_dict = forecast.to_dict()
-    forecast_xml = dict2xml(forecast_dict)
+    forecast_json = json.dumps(forecast_dict)
 
     # Convert forecast to xml bytes
     forecast_bytes = io.BytesIO()
-    forecast_bytes.write(forecast_xml.encode())
+    forecast_bytes.write(forecast_json.encode())
     forecast_bytes.seek(0)
 
     # Store files also locally
     with Path.open(Path(CONFIG.data, file_name.split("-")[1], file_name), "w") as f:
-        f.write(forecast_xml)
+        f.write(forecast_json)
 
     # Connect to server and upload forecast
     ftp_server = FTP(CONFIG.ftp.host, CONFIG.ftp.user, CONFIG.ftp.password)
