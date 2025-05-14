@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 @click.command()
-@click.option("--icon1", "-i1")
-@click.option("--icon2", "-i2")
+@click.option("--init_icon1", "-i1")
+@click.option("--init_icon2", "-i2")
 def predict(init_icon1: str | None = None, init_icon2: str | None = None):
 
     if init_icon1 is None:
@@ -44,7 +44,7 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
     # Iterate over forecasting sizes
     for site in CONFIG.forecast.sites:
         for target in CONFIG.forecast.targets:
-            # Define file name and check if forecast already exists
+            # Define file name and check if forecast has already been processed
             file_name = f"{site.name}-{init_icon1}-{target.parameter}.json"
             if Path.is_file(Path(CONFIG.data, init_icon1, file_name)):
                 logging.warning("Prediction %s for %s already exists", target.parameter, site.name)
