@@ -152,8 +152,6 @@ def process_forecast(model: Literal["ICON1", "ICON2"], init: str):
         ds = da_to_ds(da, param)
         write_forecast(ds, model, param, init_time)
 
-    # Trigger processing of latest forecast
-    predict()
 
 if __name__ == "__main__":
     process_forecast()
