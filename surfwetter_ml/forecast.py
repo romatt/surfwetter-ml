@@ -145,7 +145,7 @@ def add_metadata(forecast: xr.DataArray, target: TargetSettings) -> xr.DataArray
         Updated xarray
     """
     forecast.attrs["unit"] = target.unit
-    forecast.attrs["description"] = target.desc
+    forecast.attrs["description"] = target.description
     return forecast
 
 
