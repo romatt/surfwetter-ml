@@ -178,9 +178,12 @@ def upload_forecast(forecast: xr.DataArray, file_name: str) -> None:
     with Path.open(Path(CONFIG.data, file_name.split("-")[1], file_name), "w") as f:
         f.write(forecast_json)
 
+    date_str = re.search("[0-9]{10}-", file_name)
+    remote_fn = file_name.replace(date_str[0], "")
+
     # Connect to server and upload forecast
     ftp_server = FTP(CONFIG.ftp.host, CONFIG.ftp.user, CONFIG.ftp.password)
-    ftp_server.storbinary(f"STOR {file_name}", forecast_bytes)
+    ftp_server.storbinary(f"STOR {remote_fn}", forecast_bytes)
 
     # Close the Connection
     ftp_server.quit()
