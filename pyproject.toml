@@ -32,6 +32,8 @@ dependencies = [
   "matplotlib (>=3.10.1,<4.0.0)",
   "pydantic-yaml (>=1.4.0,<2.0.0)",
   "dict2xml (>=1.7.6,<2.0.0)",
+  "cartopy (>=0.24.1,<0.25.0)",
+  "geopandas (>=1.0.1,<2.0.0)",
 ]
 
 [tool.poetry.dependencies]
