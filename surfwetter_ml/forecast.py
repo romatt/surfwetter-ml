@@ -24,6 +24,7 @@ import xarray as xr
 from surfwetter_ml import CONFIG
 from surfwetter_ml.config.setting import SiteSettings
 from surfwetter_ml.config.setting import TargetSettings
+from surfwetter_ml.plot import plot_ICON1
 from surfwetter_ml.util import write_forecast
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,6 @@ logger = logging.getLogger(__name__)
 @click.option("--init_icon1", "-i1")
 @click.option("--init_icon2", "-i2")
 def predict(init_icon1: str | None = None, init_icon2: str | None = None):
-
     if init_icon1 is None:
         # Load the latest fully available ICON1 & ICON2 forecast
         init_icon1, init_icon2 = lookup_latest_forecast()
@@ -72,6 +72,10 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
             # Upload forecast to FTP server
             upload_forecast(forecast, file_name)
 
+    # Generate plots
+    logging.info("Plot forecast")
+    plot_ICON1(init_icon1)
+    upload_plot(init_icon1)
 
 def pre_process_forecast(init_icon1: str, init_icon2: str) -> None:
     """Run pre-processing steps for foreacst, only needed once per forecast
@@ -163,7 +167,7 @@ def upload_forecast(forecast: xr.DataArray, file_name: str) -> None:
     logger.info("Uploading %s to FTP server...", file_name)
 
     # Define time format
-    forecast['valid_time'] = forecast.valid_time.dt.strftime("%Y-%m-%dT%H:%M:%S")
+    forecast["valid_time"] = forecast.valid_time.dt.strftime("%Y-%m-%dT%H:%M:%S")
 
     # Convert forecast to JSON
     forecast_dict = forecast.to_dict()
@@ -186,6 +190,14 @@ def upload_forecast(forecast: xr.DataArray, file_name: str) -> None:
     ftp_server.storbinary(f"STOR {remote_fn}", forecast_bytes)
 
     # Close the Connection
+    ftp_server.quit()
+
+
+def upload_plot(model_init: str, fname: str = "lake_lucerne.webp") -> None:
+    # Upload image
+    ftp_server = FTP(CONFIG.ftp.host, CONFIG.ftp.user, CONFIG.ftp.password)
+    with Path.open(Path(CONFIG.data, model_init, fname), "rb") as file:
+        ftp_server.storbinary(f"STOR {fname}", file)
     ftp_server.quit()
 
 
