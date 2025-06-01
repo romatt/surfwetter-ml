@@ -66,3 +66,22 @@ def da_to_ds(data: xr.DataArray, param: str) -> xr.Dataset:
     ds["eps"].attrs = data["eps"].attrs
 
     return ds
+
+def process_shapes():
+
+    import geopandas as gpd
+
+    # Load raw data
+    lines = gpd.read_file("src/TLM_GEWAESSER/swissTLM3D_TLM_STEHENDES_GEWAESSER.shp")
+
+    # Convert linestrings to polygons
+    polygons = lines.polygonize()
+
+    # Keep only lakes with a certain area
+    large_lakes = polygons[polygons.area > 10000]
+
+    # Re-project
+    large_lakes = large_lakes.to_crs(4326)
+
+    # Store to disk
+    large_lakes.to_file("src/lakes")
