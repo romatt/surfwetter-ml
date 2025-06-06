@@ -89,6 +89,22 @@ class FTPSettings(SubscriptableBaseModel):
     password: str
     """FTP password"""
 
+class PlotSettings(SubscriptableBaseModel):
+    location: str
+    """Location name"""
+
+    title: str
+    """Title of plot"""
+
+    extent: list[float, float, float, float]
+    """Plotting bounds"""
+
+    mesh_thres: int
+    """Mesh threshold for wind gust probabilities"""
+
+    line_thres: int
+    """Line threshold for wind gust probabilities"""
+
 
 class LibrarySettings(BaseModel):
     nwp: NWPSettings
@@ -108,3 +124,6 @@ class LibrarySettings(BaseModel):
 
     ftp: FTPSettings
     """Setting for connection to FTP server"""
+
+    plot: list[PlotSettings]
+    """Settings for plotting"""
