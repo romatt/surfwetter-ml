@@ -12,7 +12,6 @@ from meteodatalab.operators import regrid
 from rasterio.crs import CRS
 
 from surfwetter_ml import CONFIG
-from surfwetter_ml.forecast import predict
 from surfwetter_ml.util import da_to_ds
 from surfwetter_ml.util import write_forecast
 
@@ -93,7 +92,7 @@ def regrid_forecast(data: xr.DataArray, model: Literal["ICON1", "ICON2"]) -> xr.
     nx, ny = round((xmax - xmin) / distance), round((ymax - ymin) / distance)  # Number of grid points in x and y
 
     # Create a regular lat/lon grid using EPSG:4326
-    destination = regrid.RegularGrid(CRS.from_string("epsg:4326"), nx, ny, xmin, xmax, ymin, ymax)
+    destination = regrid.RegularGrid(CRS.from_string("epsg:4326"), nx+1, ny+1, xmin, xmax, ymin, ymax)
 
     # Remap ICON native grid data to the regular grid
     return regrid.iconremap(data, destination)
