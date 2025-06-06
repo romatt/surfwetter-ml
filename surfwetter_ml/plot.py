@@ -4,6 +4,7 @@ import os
 import subprocess
 
 import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 import click
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -19,29 +20,35 @@ from surfwetter_ml import CONFIG
 logger = logging.getLogger(__name__)
 
 
-def plot_ICON1(forecast: str) -> None:
-    logger.info("Plotting lake_lucerne.png for %s", forecast)
+def plot_ICON1(forecast: str, location: str) -> None:
+    logger.info("Plotting lake %s for %s", location, forecast)
+    title, extent, mesh_thres, line_thres = get_plot_settings(location)
+
     gusts = xr.open_dataset(f"{CONFIG.data}/{forecast}/ICON1-{forecast}-VMAX_10M.nc")
     gusts["VMAX_10M"] = gusts["VMAX_10M"] * 1.944  # convert windspeed from m/s to knots
 
     # Load rain
     rain = xr.open_dataset(f"{CONFIG.data}/{forecast}/ICON1-{forecast}-TOT_PREC.nc")
-    rain = rain.diff(dim="valid_time", label="upper")
+    rain_t0 = rain.isel(valid_time=0)
+    rain_diff = rain.diff(dim="valid_time", label="upper")
+    rain = xr.concat([rain_t0, rain_diff], dim='valid_time')
 
     # Convert to local time
     gusts = set_timezone(gusts, "valid_time")
     rain = set_timezone(rain, "valid_time")
 
     # Compute probability to exceed 14 and 24 knots
-    exceed_14 = xr.where(gusts.VMAX_10M >= 14, 1, 0)
+    exceed_14 = xr.where(gusts.VMAX_10M >= mesh_thres, 1, 0)
     prob_14 = exceed_14.sum(dim="eps") / 11
-    exceed_20 = xr.where(gusts.VMAX_10M >= 20, 1, 0)
+    exceed_20 = xr.where(gusts.VMAX_10M >= line_thres, 1, 0)
     prob_20 = exceed_20.sum(dim="eps") / 11
 
-    # Reduce size needed for plotting
-    prob_14 = prob_14.sel(lat=slice(46.7, 47.2), lon=slice(8, 9))
-    prob_20 = prob_20.sel(lat=slice(46.7, 47.2), lon=slice(8, 9))
-    rain_median = rain.TOT_PREC.median(dim="eps").sel(lat=slice(46.7, 47.2), lon=slice(8, 9))
+    # Reduce size of data to speed up plotting
+    prob_14 = prob_14.sel(lat=slice(extent[2] - 0.1, extent[3] + 0.1), lon=slice(extent[0] - 0.1, extent[1] + 0.1))
+    prob_20 = prob_20.sel(lat=slice(extent[2] - 0.1, extent[3] + 0.1), lon=slice(extent[0] - 0.1, extent[1] + 0.1))
+    rain_median = rain.TOT_PREC.median(dim="eps").sel(
+        lat=slice(extent[2] - 0.1, extent[3] + 0.1), lon=slice(extent[0] - 0.1, extent[1] + 0.1)
+    )
 
     # Define offset for lead-time, number of rows and coloums and figure height depending on model init
     # For early runs (and very late runs) start plots at 9AM
@@ -63,7 +70,6 @@ def plot_ICON1(forecast: str) -> None:
     fig = plt.figure(figsize=(30, figheight))  # width, height
     naxs = ncols * nrows
     axs = naxs * [GeoAxes]
-    extent = [8.1, 8.8, 46.8, 47.1]
 
     # Iterate over lead-times
     for idx in range(naxs):
@@ -106,34 +112,32 @@ def plot_ICON1(forecast: str) -> None:
 
     # Add labels, colorbar, and annotate plot
     cbar_ax = fig.add_axes([0.36, 0.05, 0.3, 0.03])  # left, bottom, weight, height
-    fig.colorbar(mappable=im, cax=cbar_ax, location="bottom", label="Böen > 14 Knoten (%)")
+    fig.colorbar(mappable=im, cax=cbar_ax, location="bottom", label=f"Böen > {mesh_thres} Knoten (%)")
     fig.legend(
-        handles=[Patch(color='#3a40e880', hatch=".", label=">1mm Regen")],
-        loc='upper left',
-        bbox_to_anchor=(0.2, 0.98),
-        frameon=False
+        handles=[Patch(color="#3a40e880", hatch=".", label=">1mm Regen")], loc="upper left", bbox_to_anchor=(0.2, 0.98), frameon=False
     )
     fig.legend(
-        handles=[Line2D([0], [0], color='#0000ff', lw=1, label='25%'),
-                 Line2D([0], [0], color='#007fbf', lw=1, label='50%'),
-                 Line2D([0], [0], color='#00ff80', lw=1, label='75%')
-                 ],
+        handles=[
+            Line2D([0], [0], color="#0000ff", lw=1, label="25%"),
+            Line2D([0], [0], color="#007fbf", lw=1, label="50%"),
+            Line2D([0], [0], color="#00ff80", lw=1, label="75%"),
+        ],
         ncols=3,
-        loc='upper left',
+        loc="upper left",
         bbox_to_anchor=(0.7, 1.0),
         frameon=False,
-        title="Wahrscheinlichkeit Böen > 20 Knoten "
+        title=f"Wahrscheinlichkeit Böen > {line_thres} Knoten",
     )
 
     fig.text(0.9, 0.05, "Datenquelle: MeteoSchweiz", ha="right")
     fig.text(0.13, 0.05, "surfwetter.ch", ha="left", weight="bold", size="30", alpha=0.5)
     fig.text(0.9, 0.07, f"ICON-CH1-EPS Modellauf {gusts.valid_time[0].dt.strftime('%d.%m.%Y %H:%M').data} UTC", ha="right")
-    fig.suptitle("Windvorhersage Vierwaldstättersee", weight="bold", size=25)
-    fig.savefig(f"{CONFIG.data}/{forecast}/lake_lucerne.png", dpi=150, bbox_inches="tight")
+    fig.suptitle(title, weight="bold", size=25)
+    fig.savefig(f"{CONFIG.data}/{forecast}/lake_{location}.png", dpi=150, bbox_inches="tight")
 
     # Make systemcall to convert to webp...
     os.chdir(f"{CONFIG.data}/{forecast}")
-    subprocess.run(["cwebp", "-q", "80", "lake_lucerne.png", "-o", "lake_lucerne.webp"])
+    subprocess.run(["cwebp", "-q", "80", f"lake_{location}.png", "-o", f"lake_{location}.webp"])
 
 
 def set_timezone(ds: xr.Dataset, time_var: str, timezone: str = "Europe/Zurich") -> xr.Dataset:
@@ -159,12 +163,16 @@ def add_overlay(ax, extent: list):
     ch_lakes = gpd.read_file("/home/roman/projects/surfwetter-ml/src/lakes")
     # Filter within view to speed up rendering
     lakes_within_bound = ch_lakes.cx[extent[0] : extent[1], extent[2] : extent[3]]
-    ax.add_geometries(lakes_within_bound.geometry, crs=ccrs.PlateCarree(), facecolor="#ffffff00", edgecolor="dodgerblue")
+    if lakes_within_bound.empty:
+        ax.add_feature(cfeature.LAKES,
+                       edgecolor='dodgerblue',
+                       facecolor='#ffffff00')
+    else:
+        ax.add_geometries(lakes_within_bound.geometry, crs=ccrs.PlateCarree(), facecolor="#ffffff00", edgecolor="dodgerblue")
 
     # Add points for surf spots
-    ax.scatter(8.617259408225175, 46.91610571992836, transform=ccrs.PlateCarree(), marker="*", c=["magenta"])
-    ax.scatter(8.312032, 46.967248, transform=ccrs.PlateCarree(), marker="*", c=["magenta"])
-    ax.scatter(8.600355, 46.919067, transform=ccrs.PlateCarree(), marker="*", c=["magenta"])
+    for site in CONFIG.forecast.sites:
+        ax.scatter(site.lat, site.lon, transform=ccrs.PlateCarree(), marker="*", c=["magenta"], label=site.name)
 
     # Overlay grid
     gl = ax.gridlines(draw_labels=True, color="#4c4c4c", linestyle=(0, (5, 5)))
@@ -173,6 +181,25 @@ def add_overlay(ax, extent: list):
     gl.left_labels = False
     gl.bottom_labels = False
     ax.set_extent(extent)
+
+
+def get_plot_settings(location: str) -> tuple[str, list, int, int]:
+    """Load plotting settings
+
+    Parameters
+    ----------
+    location : str
+        Location to plot
+
+    Returns
+    -------
+    tuple[str, list]
+        Plot title and extent as well as mesh and line thresholds
+    """
+
+    for plot_config in CONFIG.plot:
+        if plot_config.location == location:
+            return plot_config.title, plot_config.extent, plot_config.mesh_thres, plot_config.line_thres
 
 
 @click.command()
