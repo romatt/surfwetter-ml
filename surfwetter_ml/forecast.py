@@ -74,8 +74,10 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
 
     # Generate plots
     logging.info("Plot forecast")
-    plot_ICON1(init_icon1)
-    upload_plot(init_icon1)
+    locations = [cfg.location for cfg in CONFIG.plot]
+    for location in locations:
+        plot_ICON1(init_icon1, location)
+        upload_plot(init_icon1, f"lake_{location}.webp")
 
 def pre_process_forecast(init_icon1: str, init_icon2: str) -> None:
     """Run pre-processing steps for foreacst, only needed once per forecast
