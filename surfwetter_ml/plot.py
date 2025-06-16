@@ -172,7 +172,7 @@ def add_overlay(ax, extent: list):
 
     # Add points for surf spots
     for site in CONFIG.forecast.sites:
-        ax.scatter(site.lat, site.lon, transform=ccrs.PlateCarree(), marker="*", c=["magenta"], label=site.name)
+        ax.scatter(site.lon, site.lat, transform=ccrs.PlateCarree(), marker="*", c=["magenta"], label=site.name)
 
     # Overlay grid
     gl = ax.gridlines(draw_labels=True, color="#4c4c4c", linestyle=(0, (5, 5)))
