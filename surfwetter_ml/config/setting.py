@@ -67,6 +67,9 @@ class SiteSettings(SubscriptableBaseModel):
     name: str
     """Name of prediction site"""
 
+    desc: str
+    """Long name or description of site"""
+
     lon: float
     """Longitude of prediction site"""
 
