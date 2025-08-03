@@ -76,8 +76,12 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
     logging.info("Plot forecast")
     locations = [cfg.location for cfg in CONFIG.plot]
     for location in locations:
+        file_name = f"lake_{location}.webp"
+        if Path.is_file(Path(CONFIG.data, init_icon1, file_name)):
+            logging.warning("Plot %s already exists", file_name)
+            continue
         plot_ICON1(init_icon1, location)
-        upload_plot(init_icon1, f"lake_{location}.webp")
+        upload_plot(init_icon1, file_name)
 
 def pre_process_forecast(init_icon1: str, init_icon2: str) -> None:
     """Run pre-processing steps for foreacst, only needed once per forecast
