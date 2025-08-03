@@ -9,13 +9,13 @@ import click
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
-import pytz
 import xarray as xr
 from cartopy.mpl.geoaxes import GeoAxes
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 from surfwetter_ml import CONFIG
+from surfwetter_ml.util import set_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -138,14 +138,6 @@ def plot_ICON1(forecast: str, location: str) -> None:
     # Make systemcall to convert to webp...
     os.chdir(f"{CONFIG.data}/{forecast}")
     subprocess.run(["cwebp", "-q", "80", f"lake_{location}.png", "-o", f"lake_{location}.webp"])
-
-
-def set_timezone(ds: xr.Dataset, time_var: str, timezone: str = "Europe/Zurich") -> xr.Dataset:
-    time_index = ds.valid_time.to_index()
-    time_utc = time_index.tz_localize(dt.UTC)
-    time_lt = time_utc.tz_convert(pytz.timezone(timezone))
-    ds[time_var] = time_lt
-    return ds
 
 
 def add_overlay(ax, extent: list):

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
+import pytz
 import xarray as xr
 
 from surfwetter_ml import CONFIG
@@ -67,8 +68,8 @@ def da_to_ds(data: xr.DataArray, param: str) -> xr.Dataset:
 
     return ds
 
-def process_shapes():
 
+def process_shapes():
     import geopandas as gpd
 
     # Load raw data
@@ -85,3 +86,11 @@ def process_shapes():
 
     # Store to disk
     large_lakes.to_file("src/lakes")
+
+
+def set_timezone(ds: xr.Dataset | xr.DataArray, time_var: str, timezone: str = "Europe/Zurich") -> xr.Dataset | xr.DataArray:
+    time_index = ds.valid_time.to_index()
+    time_utc = time_index.tz_localize(dt.UTC)
+    time_lt = time_utc.tz_convert(pytz.timezone(timezone))
+    ds[time_var] = time_lt
+    return ds
