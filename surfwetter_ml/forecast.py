@@ -116,7 +116,7 @@ def pre_process_wind(model: str, init: str) -> None:
     write_forecast(icon_dir, model, "WIND_DIR", dt.datetime.strptime(init, CONFIG.dtfmt))
 
     # Compute and store wind speed
-    wind_speed = np.sqrt((u.U_10M.values)**2, (v.V_10M.values)**2)
+    wind_speed = np.sqrt((u.U_10M.values)**2 + (v.V_10M.values)**2)
     icon_speed = xr.zeros_like(u)
     icon_speed["WIND_SPEED"] = (icon_speed.dims, wind_speed)
     icon_speed = icon_speed.drop_vars("U_10M")
