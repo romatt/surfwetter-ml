@@ -25,6 +25,7 @@ from surfwetter_ml import CONFIG
 from surfwetter_ml.config.setting import SiteSettings
 from surfwetter_ml.config.setting import TargetSettings
 from surfwetter_ml.plot import plot_ICON1
+from surfwetter_ml.util import set_timezone
 from surfwetter_ml.util import write_forecast
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,9 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
 
             # Add metadata to forecast
             forecast = add_metadata(forecast, target)
+
+            # Set timezone to Zurich
+            forecast = set_timezone(forecast, "valid_time")
 
             # Upload forecast to FTP server
             upload_forecast(forecast, file_name)
@@ -173,7 +177,7 @@ def upload_forecast(forecast: xr.DataArray, file_name: str) -> None:
     logger.info("Uploading %s to FTP server...", file_name)
 
     # Define time format
-    forecast["valid_time"] = forecast.valid_time.dt.strftime("%Y-%m-%dT%H:%M:%S")
+    forecast["valid_time"] = forecast.valid_time.data.strftime("%Y-%m-%dT%H:%M:%S")
 
     # Convert forecast to JSON
     forecast_dict = forecast.to_dict()
