@@ -9,10 +9,10 @@ version = "0.1.0"
 description = "ML wind forecast library to find the best lake for surfing in Switzerland and abroad"
 readme = "README.rst"
 authors = [
-  {name = "Roman", email = "roman@techguides.yt"}
+  {name = "Roman", email = "info@surfwetter.ch"}
 ]
 maintainers = [
-  {name = "Roman", email = "roman@techguides.yt"}
+  {name = "Roman", email = "info@surfwetter.ch"}
 ]
 classifiers = [
 
