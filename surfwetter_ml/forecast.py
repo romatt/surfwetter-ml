@@ -19,6 +19,7 @@ from pathlib import Path
 
 import click
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from surfwetter_ml import CONFIG
@@ -85,7 +86,39 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
             logging.warning("Plot %s already exists", file_name)
             continue
         plot_ICON1(init_icon1, location)
-        upload_plot(init_icon1, file_name)
+        upload_file(init_icon1, file_name)
+
+    # Generate aggregated wind forecast
+    daily_forecast = pd.DataFrame()
+    for site in CONFIG.forecast.sites:
+        daily_forecast = pd.concat([daily_forecast, aggregate_wind(site.name, init_icon1)], axis=1)
+
+    # Save daily forecast to disk
+    file_name = "DAILY_WIND.json"
+    daily_forecast.to_json(Path(CONFIG.data, init_icon1, file_name))
+    upload_file(init_icon1, file_name)
+
+
+def aggregate_wind(site: str, init: str) -> pd.DataFrame:
+
+    with Path.open(Path(CONFIG.data, init, f"{site}-{init}-VMAX_10M.json")) as f:
+        vmax = json.load(f)
+
+    with Path.open(Path(CONFIG.data, init, f"{site}-{init}-WIND_DIR.json" )) as f:
+        direction = json.load(f)
+
+    vmax_quants = pd.DataFrame(np.transpose(np.array(vmax['data'])), index = vmax['coords']['valid_time']['data'], columns=vmax['coords']['quantile']['data'])
+    vmax_quants.index = pd.to_datetime(vmax_quants.index)
+    dir_quants = pd.DataFrame(np.transpose(np.array(direction['data'])), index = direction['coords']['valid_time']['data'], columns=direction['coords']['quantile']['data'])
+    dir_quants.index = pd.to_datetime(dir_quants.index)
+
+    # Get maximum per day
+    idx = vmax_quants.groupby(vmax_quants.index.day)[0.5].agg(['idxmax']).stack()
+
+    # Combine speed and direction and get max value per day
+    wind = pd.DataFrame({f"{site}-vmax": vmax_quants.loc[idx][0.5], f"{site}-dir": dir_quants.loc[idx][0.5]})
+    return wind.resample('1D').max() # Get max each day
+
 
 def pre_process_forecast(init_icon1: str, init_icon2: str) -> None:
     """Run pre-processing steps for foreacst, only needed once per forecast
@@ -114,6 +147,9 @@ def pre_process_wind(model: str, init: str) -> None:
 
     # Compute and store wind direction
     wind_dir = np.degrees(np.arctan2(u.U_10M.values, v.V_10M.values)) % 360
+
+    # Flip direction
+    wind_dir = np.where(wind_dir > 180, wind_dir - 180, 360 + (wind_dir - 180 ))
     icon_dir = xr.zeros_like(u)
     icon_dir["WIND_DIR"] = (icon_dir.dims, wind_dir)
     icon_dir = icon_dir.drop_vars("U_10M")
@@ -203,7 +239,7 @@ def upload_forecast(forecast: xr.DataArray, file_name: str) -> None:
     ftp_server.quit()
 
 
-def upload_plot(model_init: str, fname: str = "lake_lucerne.webp") -> None:
+def upload_file(model_init: str, fname: str = "lake_lucerne.webp") -> None:
     # Upload image
     ftp_server = FTP(CONFIG.ftp.host, CONFIG.ftp.user, CONFIG.ftp.password)
     with Path.open(Path(CONFIG.data, model_init, fname), "rb") as file:
