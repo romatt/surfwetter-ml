@@ -112,6 +112,10 @@ def aggregate_wind(site: str, init: str) -> pd.DataFrame:
     dir_quants = pd.DataFrame(np.transpose(np.array(direction['data'])), index = direction['coords']['valid_time']['data'], columns=direction['coords']['quantile']['data'])
     dir_quants.index = pd.to_datetime(dir_quants.index)
 
+    # Drop hours during the night from DF
+    vmax_quants = vmax_quants.drop(vmax_quants.index[(vmax_quants.index.hour < 7) | (vmax_quants.index.hour > 18)])
+    dir_quants = dir_quants.drop(dir_quants.index[(dir_quants.index.hour < 7) | (dir_quants.index.hour > 18)])
+
     # Get maximum per day
     idx = vmax_quants.groupby(vmax_quants.index.day)[0.5].agg(['idxmax']).stack()
 
