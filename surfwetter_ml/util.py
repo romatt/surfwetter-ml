@@ -98,7 +98,7 @@ def lake_outlines():
         lakes_list = json.load(f)
 
     # Keep only lakes that have predictions
-    keep_lakes = ["Urnersee", "Alpnachersee", "Murtensee", "Silvaplanersee", "Greifensee", "Zürichsee", "Sihlsee", "Walensee", "Neuenburgersee"]
+    keep_lakes = ["Urnersee", "Alpnachersee", "Murtensee", "Silvaplanersee", "Greifensee", "Zürichsee", "Sihlsee", "Walensee", "Neuenburgersee", "Untersee", "Bodensee", "Zugersee"]
     lakes_forecasted = [lake for lake in lakes_list if lake['Name'] in keep_lakes]
 
     # Convert to geopandas DF
