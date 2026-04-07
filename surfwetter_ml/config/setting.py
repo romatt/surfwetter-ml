@@ -76,6 +76,9 @@ class SiteSettings(SubscriptableBaseModel):
     lat: float
     """Latitude of prediction site"""
 
+    eawag: str
+    """Name of lake in eawag lake simulations"""
+
 
 class ForecastSettings(SubscriptableBaseModel):
     sites: list[SiteSettings]
