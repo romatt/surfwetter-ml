@@ -125,7 +125,11 @@ def lake_outlines():
 
 def set_timezone(ds: xr.Dataset | xr.DataArray, time_var: str, timezone: str = "Europe/Zurich") -> xr.Dataset | xr.DataArray:
     time_index = ds.valid_time.to_index()
-    time_utc = time_index.tz_localize(dt.UTC)
+    try:
+        time_utc = time_index.tz_localize(dt.UTC)
+    except TypeError:
+        logger.info("Object already tz-aware")
+        time_utc = time_index
     time_lt = time_utc.tz_convert(pytz.timezone(timezone))
     ds[time_var] = time_lt
     return ds
