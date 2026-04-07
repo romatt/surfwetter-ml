@@ -20,6 +20,8 @@ from pathlib import Path
 import click
 import numpy as np
 import pandas as pd
+import pytz
+import requests
 import xarray as xr
 
 from surfwetter_ml import CONFIG
@@ -69,13 +71,18 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
             forecast = combine_forecasts(icon1_quant, icon2_quant)
 
             # Add metadata to forecast
-            forecast = add_metadata(forecast, target)
+            forecast = add_metadata(forecast, site, target)
 
             # Set timezone to Zurich
             forecast = set_timezone(forecast, "valid_time")
 
             # Upload forecast to FTP server
-            upload_forecast(forecast, file_name)
+            upload_forecast(forecast.copy(deep=True), file_name)
+
+        # Load lake forecast only when a lake is defined
+        if site.eawag:
+            lake_forecast = load_lake_forecast(site.eawag, forecast.valid_time)
+            upload_forecast(lake_forecast, f"{site.name}-{init_icon1}-laketemp.json")
 
     # Generate plots
     logging.info("Plot forecast")
@@ -104,12 +111,18 @@ def aggregate_wind(site: str, init: str) -> pd.DataFrame:
     with Path.open(Path(CONFIG.data, init, f"{site}-{init}-VMAX_10M.json")) as f:
         vmax = json.load(f)
 
-    with Path.open(Path(CONFIG.data, init, f"{site}-{init}-WIND_DIR.json" )) as f:
+    with Path.open(Path(CONFIG.data, init, f"{site}-{init}-WIND_DIR.json")) as f:
         direction = json.load(f)
 
-    vmax_quants = pd.DataFrame(np.transpose(np.array(vmax['data'])), index = vmax['coords']['valid_time']['data'], columns=vmax['coords']['quantile']['data'])
+    vmax_quants = pd.DataFrame(
+        np.transpose(np.array(vmax["data"])), index=vmax["coords"]["valid_time"]["data"], columns=vmax["coords"]["quantile"]["data"]
+    )
     vmax_quants.index = pd.to_datetime(vmax_quants.index)
-    dir_quants = pd.DataFrame(np.transpose(np.array(direction['data'])), index = direction['coords']['valid_time']['data'], columns=direction['coords']['quantile']['data'])
+    dir_quants = pd.DataFrame(
+        np.transpose(np.array(direction["data"])),
+        index=direction["coords"]["valid_time"]["data"],
+        columns=direction["coords"]["quantile"]["data"],
+    )
     dir_quants.index = pd.to_datetime(dir_quants.index)
 
     # Drop hours during the night from DF
@@ -117,11 +130,11 @@ def aggregate_wind(site: str, init: str) -> pd.DataFrame:
     dir_quants = dir_quants.drop(dir_quants.index[(dir_quants.index.hour < 7) | (dir_quants.index.hour > 18)])
 
     # Get maximum per day
-    idx = vmax_quants.groupby(vmax_quants.index.day)[0.5].agg(['idxmax']).stack()
+    idx = vmax_quants.groupby(vmax_quants.index.day)[0.5].agg(["idxmax"]).stack()
 
     # Combine speed and direction and get max value per day
     wind = pd.DataFrame({f"{site}-vmax": vmax_quants.loc[idx][0.5], f"{site}-dir": dir_quants.loc[idx][0.5]})
-    return wind.resample('1D').max() # Get max each day
+    return wind.resample("1D").max()  # Get max each day
 
 
 def pre_process_forecast(init_icon1: str, init_icon2: str) -> None:
@@ -153,14 +166,14 @@ def pre_process_wind(model: str, init: str) -> None:
     wind_dir = np.degrees(np.arctan2(u.U_10M.values, v.V_10M.values)) % 360
 
     # Flip direction
-    wind_dir = np.where(wind_dir > 180, wind_dir - 180, 360 + (wind_dir - 180 ))
+    wind_dir = np.where(wind_dir > 180, wind_dir - 180, 360 + (wind_dir - 180))
     icon_dir = xr.zeros_like(u)
     icon_dir["WIND_DIR"] = (icon_dir.dims, wind_dir)
     icon_dir = icon_dir.drop_vars("U_10M")
     write_forecast(icon_dir, model, "WIND_DIR", dt.datetime.strptime(init, CONFIG.dtfmt))
 
     # Compute and store wind speed
-    wind_speed = np.sqrt((u.U_10M.values)**2 + (v.V_10M.values)**2)
+    wind_speed = np.sqrt((u.U_10M.values) ** 2 + (v.V_10M.values) ** 2)
     icon_speed = xr.zeros_like(u)
     icon_speed["WIND_SPEED"] = (icon_speed.dims, wind_speed)
     icon_speed = icon_speed.drop_vars("U_10M")
@@ -183,13 +196,15 @@ def combine_forecasts(icon1: xr.DataArray, icon2: xr.DataArray) -> xr.DataArray:
     return xr.concat([icon1.sel(valid_time=icon1_valid[:-3]), overlap_da, icon2.sel(valid_time=icon2_select)], dim="valid_time")
 
 
-def add_metadata(forecast: xr.DataArray, target: TargetSettings) -> xr.DataArray:
+def add_metadata(forecast: xr.DataArray, site: SiteSettings, target: TargetSettings) -> xr.DataArray:
     """Add meta data to xarray
 
     Parameters
     ----------
     forecast : xr.DataArray
         The forecast
+    site : SiteSettings
+        The site settings
     target : TargetSettings
         The target settings
 
@@ -200,6 +215,9 @@ def add_metadata(forecast: xr.DataArray, target: TargetSettings) -> xr.DataArray
     """
     forecast.attrs["unit"] = target.unit
     forecast.attrs["description"] = target.description
+    forecast.attrs["name"] = site.desc
+    forecast.attrs["lon"] = site.lon
+    forecast.attrs["lat"] = site.lat
     return forecast
 
 
@@ -330,6 +348,67 @@ def compute_quantiles(data: xr.Dataset, site: SiteSettings, target: TargetSettin
         statistics.append(local_statistic)
 
     return xr.concat(statistics, dim="quantile")
+
+
+def load_lake_forecast(lake: str, dates: xr.DataArray) -> xr.Dataset:
+    """Load lake temperature forecast from eawag for for `lake` and interpolate temperatures on provided `dates`.
+    Lake forecasts are only available at 00 LT 03 LT etc.
+
+    Parameters
+    ----------
+    lake : str
+        Lake to load temperatures for
+    dates : xr.DataArray
+        Dates contained in forecast
+
+    Returns
+    -------
+    xr.DataSet
+        DataSet with lake temperatures
+    """
+
+    # Convert from local to UTC time
+    dates_index = dates.valid_time.to_index()
+    dates_utc = dates_index.tz_convert(pytz.timezone("UTC"))
+    # Add a buffer before and after the expected valid times to ensure we cover all dates
+    start_date = (dates_utc[0] - dt.timedelta(hours=3)).strftime("%Y%m%d%H%M")
+    end_date = (dates_utc[-1] + dt.timedelta(hours=3)).strftime("%Y%m%d%H%M")
+
+    # Load lake forecast
+    get_url = f"https://alplakes-api.eawag.ch/simulations/1d/point/simstrat/{lake}/{start_date}/{end_date}/1?variables=T"
+    response = requests.get(get_url, timeout=10)
+    response_dict = json.loads(response.content)
+
+    # Convert to dataframe
+    df = pd.DataFrame(
+        {
+            "valid_time": pd.DatetimeIndex(response_dict["time"], tz=dt.UTC).round(freq="1h"),
+            "laketemp": response_dict["variables"]["T"]["data"],
+        }
+    )
+
+    # Fill missing hours and interpolate forecast
+    dates_range = pd.date_range(df.valid_time.min(), df.valid_time.max(), freq="1h")
+    df.set_index("valid_time", inplace=True)
+    df_large = pd.DataFrame({"valid_time": dates_range}).set_index("valid_time")
+    df_filled = df_large.join(df)
+    df_filled.interpolate(method="linear", inplace=True)
+
+    # Select only matching valid times from ICON forecast
+    df_final = df_filled.loc[dates_utc[0]:]
+
+    # Convert from dict to xarray
+    ds = df_final.to_xarray()
+    # da = xr.DataArray(data=response_dict["variables"]["T"]["data"], dims="valid_time")
+    # da = da.assign_coords({"valid_time": pd.DatetimeIndex(response_dict["time"], tz=dt.UTC).round(freq="1h")})
+    # da.reindex(time=dates_utc).interpolate_na(dim="valid_time")
+
+    # Fill holes and interpolate between data
+
+    # Set timezone to Zurich
+    ds = set_timezone(ds, "valid_time")
+
+    return ds
 
 
 if __name__ == "__main__":
