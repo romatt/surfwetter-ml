@@ -62,6 +62,9 @@ class TargetSettings(SubscriptableBaseModel):
     unit: str
     """Unit of foreacst"""
 
+    nround: int
+    """Number of decimals to round data to"""
+
 
 class SiteSettings(SubscriptableBaseModel):
     name: str

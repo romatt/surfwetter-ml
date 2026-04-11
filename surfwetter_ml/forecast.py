@@ -58,7 +58,7 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
             icon1_fcst = xr.open_dataset(Path(CONFIG.data, init_icon1, f"ICON1-{init_icon1}-{target.parameter}.nc"))
             icon2_fcst = xr.open_dataset(Path(CONFIG.data, init_icon2, f"ICON2-{init_icon2}-{target.parameter}.nc"))
 
-            # Deaggregate forecast if needed
+            # De-aggregate forecast if needed
             if target.accumulated:
                 icon1_fcst = icon1_fcst.diff(dim="valid_time", label="lower")
                 icon2_fcst = icon2_fcst.diff(dim="valid_time", label="lower")
@@ -79,8 +79,8 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
             # Upload forecast to FTP server
             upload_forecast(forecast.copy(deep=True), file_name)
 
-        # Load lake forecast only when a lake is defined
-        if site.eawag:
+        # Load lake forecast only when a lake is defined and if variable forecast exists
+        if site.eawag and 'forecast' in locals():
             lake_forecast = load_lake_forecast(site.eawag, forecast.valid_time)
             upload_forecast(lake_forecast, f"{site.name}-{init_icon1}-laketemp.json")
 
@@ -341,10 +341,11 @@ def compute_quantiles(data: xr.Dataset, site: SiteSettings, target: TargetSettin
     xr.DataArray
         Requested quantiles of parameter extracted at required station
     """
+    logger.debug("Extracting %s for %s at lon: %s, lat: %s", target.parameter, site.name, site.lon, site.lat)
     local_forecast = data[target.parameter].sel(lon=site.lon, lat=site.lat, method="nearest")  # Select location and parameter
     statistics = []
     for quantile in target.quantiles:
-        local_statistic = local_forecast.quantile(q=quantile, dim="eps")
+        local_statistic = local_forecast.quantile(q=quantile, dim="eps").round(target.nround)
         statistics.append(local_statistic)
 
     return xr.concat(statistics, dim="quantile")
@@ -353,6 +354,8 @@ def compute_quantiles(data: xr.Dataset, site: SiteSettings, target: TargetSettin
 def load_lake_forecast(lake: str, dates: xr.DataArray) -> xr.Dataset:
     """Load lake temperature forecast from eawag for for `lake` and interpolate temperatures on provided `dates`.
     Lake forecasts are only available at 00 LT 03 LT etc.
+
+    Check if we could also load from here: https://www.zh.ch/de/umwelt-tiere/wasser-gewaesser/messdaten/wassertemperaturen.html
 
     Parameters
     ----------
