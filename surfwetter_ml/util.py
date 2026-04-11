@@ -91,19 +91,38 @@ def process_shapes():
     # Store to disk
     large_lakes.to_file("src/lakes")
 
+
 def lake_outlines():
+    """
+    Additional shapefiles:
+    - https://deims.org/f30007c4-8a6e-4f11-ab87-569db54638fe
+    - https://deims.org/58036d71-8141-40c3-a0f2-50b8bd1bcddc
+    """
 
     # Load swiss lakes
     with open("/home/roman/projects/surfwetter-ml/src/Lakes_new.json") as f:
         lakes_list = json.load(f)
 
     # Keep only lakes that have predictions
-    keep_lakes = ["Urnersee", "Alpnachersee", "Murtensee", "Silvaplanersee", "Greifensee", "Zürichsee", "Sihlsee", "Walensee", "Neuenburgersee", "Untersee", "Bodensee", "Zugersee"]
-    lakes_forecasted = [lake for lake in lakes_list if lake['Name'] in keep_lakes]
+    keep_lakes = [
+        "Urnersee",
+        "Alpnachersee",
+        "Murtensee",
+        "Silvaplanersee",
+        "Greifensee",
+        "Zürichsee",
+        "Sihlsee",
+        "Walensee",
+        "Neuenburgersee",
+        "Untersee",
+        "Zugersee",
+        "Lake Maggiore"
+    ]
+    lakes_forecasted = [lake for lake in lakes_list if lake["Name"] in keep_lakes]
 
     # Convert to geopandas DF
     df = pd.DataFrame(lakes_forecasted)
-    gdf_lakes = gpd.GeoDataFrame(df['Name'], geometry=shapely.wkt.loads(df['GeometryCH1903+']), crs="EPSG:2056")
+    gdf_lakes = gpd.GeoDataFrame(df["Name"], geometry=shapely.wkt.loads(df["GeometryCH1903+"]), crs="EPSG:2056")
 
     # Re-project to WGGS84
     gdf_lakes = gdf_lakes.to_crs(4326)
@@ -111,16 +130,22 @@ def lake_outlines():
     # Add Gardasee
     garda_json = open("/home/roman/projects/surfwetter-ml/src/gardasee.geojson")
     gdf_garda = gpd.read_file(garda_json, columns="geometry")
-
     gdf_garda.insert(1, "Name", ["Gardasee"])
-
-#    gdf_garda.drop(["deimsid", "id", "field_elevation_avg_value"], axis=1, inplace=True)
-#    gdf_garda.rename(columns={"name": "Name"}, inplace=True)
-
+    #    gdf_garda.drop(["deimsid", "id", "field_elevation_avg_value"], axis=1, inplace=True)
+    #    gdf_garda.rename(columns={"name": "Name"}, inplace=True)
     gdf_combined = pd.concat([gdf_lakes, gdf_garda])
 
+    # Add Comersee
+    como_json = open("/home/roman/projects/surfwetter-ml/src/como.geojson")
+    gdf_como = gpd.read_file(como_json, columns="geometry")
+    gdf_como.insert(1, "Name", ["Comersee"])
+    gdf_combined = pd.concat([gdf_combined, gdf_como])
+
+    # Reduce decimals
+    gdf_combined.geometry = gdf_combined.geometry.set_precision(grid_size=0.000001)
+
     # Save objects
-    gdf_combined.to_file('/home/roman/projects/surfwetter-ml/src/fcst_lakes.geojson', driver='GeoJSON')
+    gdf_combined.to_file("/home/roman/projects/surfwetter-ml/src/fcst_lakes.geojson", driver="GeoJSON")
 
 
 def set_timezone(ds: xr.Dataset | xr.DataArray, time_var: str, timezone: str = "Europe/Zurich") -> xr.Dataset | xr.DataArray:
