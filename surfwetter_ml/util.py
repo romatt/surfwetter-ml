@@ -116,7 +116,8 @@ def lake_outlines():
         "Neuenburgersee",
         "Untersee",
         "Zugersee",
-        "Lake Maggiore"
+        "Lake Maggiore",
+        "Lake Biel"
     ]
     lakes_forecasted = [lake for lake in lakes_list if lake["Name"] in keep_lakes]
 
