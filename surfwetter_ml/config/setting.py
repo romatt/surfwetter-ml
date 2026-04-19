@@ -73,13 +73,13 @@ class SiteSettings(SubscriptableBaseModel):
     desc: str
     """Long name or description of site"""
 
-    lon: float
+    lon: float | list[float]
     """Longitude of prediction site"""
 
-    lat: float
+    lat: float | list[float]
     """Latitude of prediction site"""
 
-    eawag: str
+    eawag: str = ""
     """Name of lake in eawag lake simulations"""
 
 
