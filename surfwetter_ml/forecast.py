@@ -48,6 +48,15 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
     # Iterate over forecasting sizes
     for site in CONFIG.forecast.sites:
         for target in CONFIG.forecast.targets:
+
+            # Compute PMSL only for pressure difference locations
+            if target.parameter == "PMSL" and "QFF" not in site.name:
+                continue
+
+            # Do not process other parameters for pressure difference locations
+            if "QFF" in site.name and target.parameter != "PMSL":
+                continue
+
             # Define file name and check if forecast has already been processed
             file_name = f"{site.name}-{init_icon1}-{target.parameter}.json"
             if Path.is_file(Path(CONFIG.data, init_icon1, file_name)):
@@ -98,6 +107,8 @@ def predict(init_icon1: str | None = None, init_icon2: str | None = None):
     # Generate aggregated wind forecast
     daily_forecast = pd.DataFrame()
     for site in CONFIG.forecast.sites:
+        if "QFF" in site.name:  # Don't attempt to compute daily winds for QFF locations
+            continue
         daily_forecast = pd.concat([daily_forecast, aggregate_wind(site.name, init_icon1)], axis=1)
 
     # Save daily forecast to disk
@@ -342,7 +353,12 @@ def compute_quantiles(data: xr.Dataset, site: SiteSettings, target: TargetSettin
         Requested quantiles of parameter extracted at required station
     """
     logger.debug("Extracting %s for %s at lon: %s, lat: %s", target.parameter, site.name, site.lon, site.lat)
-    local_forecast = data[target.parameter].sel(lon=site.lon, lat=site.lat, method="nearest")  # Select location and parameter
+    if isinstance(site.lon, list):
+        location_1 = data[target.parameter].sel(lon=site.lon[0], lat=site.lat[0], method="nearest")  # Get first location
+        location_2 = data[target.parameter].sel(lon=site.lon[1], lat=site.lat[1], method="nearest")  # Get second location
+        local_forecast = location_1 - location_2  # Subtract members at locations such that quantile computation works correctly
+    else:
+        local_forecast = data[target.parameter].sel(lon=site.lon, lat=site.lat, method="nearest")  # Select location and parameter
     statistics = []
     for quantile in target.quantiles:
         local_statistic = local_forecast.quantile(q=quantile, dim="eps").round(target.nround)
