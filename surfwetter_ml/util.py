@@ -116,8 +116,13 @@ def lake_outlines():
         "Neuenburgersee",
         "Untersee",
         "Zugersee",
-        "Lake Maggiore",
-        "Lake Biel"
+        "Lago Maggiore",
+        "Bielersee",
+        "Ägerisee",
+        "Hallwilersee",
+        "Sempachersee",
+        "Thunersee",
+        "Obersee"
     ]
     lakes_forecasted = [lake for lake in lakes_list if lake["Name"] in keep_lakes]
 
@@ -141,6 +146,12 @@ def lake_outlines():
     gdf_como = gpd.read_file(como_json, columns="geometry")
     gdf_como.insert(1, "Name", ["Comersee"])
     gdf_combined = pd.concat([gdf_combined, gdf_como])
+
+    # Add Lac du Rosel
+    add_json = open("/home/roman/projects/surfwetter-ml/src/rosel.geojson")
+    gdf_add = gpd.read_file(add_json, columns="geometry")
+    gdf_add.insert(1, "Name", ["Lac du Rosel"])
+    gdf_combined = pd.concat([gdf_combined, gdf_add])
 
     # Reduce decimals
     gdf_combined.geometry = gdf_combined.geometry.set_precision(grid_size=0.000001)
